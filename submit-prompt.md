@@ -1,5 +1,7 @@
 # PROMPT SUBMIT — Sandbox Wearable & Cosmetic Bounty (Set "Midnight Gold", 4 item)
 
+> ⚠️ KOREKSI 2026-11-19 ~23:30 WIB (waluh, hasil coba submit lewat browser): **Avatar Studio versi WEB SUDAH TIDAK ADA.** create.sandbox.game kini hanya hub download aplikasi desktop **Sandbox Studio** (Windows 10+ / macOS Apple Silicon). **Avatar Studio hanya ada DI DALAM aplikasi desktop itu** (menu hamburger kiri atas → Avatar Studio). Jangan kerjakan lewat browser — install + jalankan Sandbox Studio di laptop Windows dulu, login sebagai Ukkas, baru ikuti langkah di bawah. Link Google Form submit (dari Luma, sudah diverifikasi): https://docs.google.com/forms/d/e/1FAIpQLSd7xdJGT66hiABAzpOvS1vRNCitJLZoirOaronVzBEPjYTfGg/viewform
+
 > Berikan prompt ini apa adanya ke agen yang akan mengerjakan submit. Jangan ubah alamat, link, atau langkahnya.
 
 ## ⚠️ PERUBAHAN PENTING (19 Nov 2026, ~23:26 WIB)
@@ -38,8 +40,8 @@ Repo: **https://github.com/ukkas234/sandbox-hat** (public) — clone/pull dulu.
 2. Kalau belum terpasang: download dari https://create.sandbox.game/ dan install.
 3. Buka aplikasinya, **login** dengan email terselubung2000@gmail.com (akun ukkas yang sudah ada).
 
-### Item 1: Topi (GLB, alur aksesori)
-4. Di dalam aplikasi, buka **Avatar Studio** → **Create Accessory** → **Import** file `sandbox-fedora.glb` → pilih socket **Hat** → jalankan **validasi**. Kalau validasi lolos → **Export Accessory**. Kalau validasi menolak, BERHENTI dan laporkan pesan error persisnya (jangan tebak perbaikannya).
+### Item 1: Topi (GLB)
+4. Di dalam aplikasi, buka menu **hamburger (≡) di pojok kiri atas** → pilih **Avatar Studio...** → **Create Accessory** → isi **Accessory Name** (mis. `Midnight Gold Fedora`) → **Create**. (Sumber: docs resmi https://studio-docs.sandbox.game/avatars/how-to-create-an-avatar-accessory.md — JANGAN pakai menu View, itu bukan jalurnya.) Lalu: pilih **Avatar** preview → **Import** → drop file `sandbox-fedora.glb` → socket **Hat** (default) → jalankan **validasi**. Kalau validasi lolos → **Adjust** (opsional) → **Export** → **Export Accessory...**. Kalau validasi menolak, BERHENTI dan laporkan pesan error persisnya (jangan tebak perbaikannya).
 5. **Publish** aksesori yang sudah di-export (lengkapi metadata, tentukan harga dalam Silicon). Catat link aset yang sudah dipublish.
 6. **Google Form**: isi dengan **link aset** dari langkah 5 + **alamat Polygon** `0x0c7df522D735aDB453566F327823Bf204B226fEF`. Submit form.
 
