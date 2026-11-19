@@ -1,0 +1,3 @@
+# NEVER commit wallet secrets
+polygon-wallet.json
+*.blend1

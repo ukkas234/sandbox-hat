@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+"""Render the Midnight Gold set on a stylised manikin (Blender).
+
+Opens sandbox-fedora.blend (hat already there), builds a simple manikin,
+maps the three skin textures onto it with per-face UVs (front face -> front
+of texture, back face -> back of texture), and renders:
+  previews/preview-set.png       full outfit + fedora, 3/4 view
+  previews/preview-top.png       torso close-up, front
+  previews/preview-bottom.png    legs close-up, front
+  previews/preview-footwear.png  feet close-up, low 3/4
+
+IMPORTANT: mesh vertex coords are LOCAL (cube centred on origin), so all
+UV-mapping ranges below use local half-extents, not world coordinates.
+
+Texture UV note (Blender v = 1 - image_y/1024, u = image_x/1024):
+  Top:    front torso  x 312-712, y 26-500   | back torso x 312-712, y 538-1012
+          front sleeve x 24-312,  y 36-168   | back sleeve  x 24-312,  y 548-680
+          (right sleeve mirrored: x 712-1000)
+  Bottom: front left leg  x 24-250,  y 24-1000 | front right leg x 262-488
+          back legs x 536-762 / 774-1000 (same y)
+  Shoes:  right-shoe upper region x 10-563, y 102-563 (U shape)
+"""
+import bpy
+import math
+from mathutils import Vector
+
+SET = "/home/hatch/workspace/sandbox-hat/set"
+TOP = f"{SET}/sandbox-top.png"
+BOT = f"{SET}/sandbox-bottom.png"
+SHOE = f"{SET}/sandbox-footwear.png"
+
+# ---------- load fedora blend ----------
+bpy.ops.wm.open_mainfile(filepath="/home/hatch/workspace/sandbox-hat/sandbox-fedora.blend")
+hat = bpy.data.objects["SandboxFedora"]
+hat.location = (0, 0, 1.73)   # origin = top of head; head top at z=1.73
+
+# ---------- helpers ----------
+def uv_rect(x0, y0, x1, y1):
+    """Image rect (x0,y0)-(x1,y1) -> (u_range, v_range)."""
+    return ((x0 / 1024.0, x1 / 1024.0),
+            (1.0 - y1 / 1024.0, 1.0 - y0 / 1024.0))
+
+def make_textured_mat(name, img_path):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes["Principled BSDF"]
+    tex = m.node_tree.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(img_path)
+    tex.extension = 'CLIP'
+    m.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.75
+    return m
+
+def make_plain_mat(name, rgb, rough=0.6):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    b = m.node_tree.nodes["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (*rgb, 1.0)
+    b.inputs["Roughness"].default_value = rough
+    return m
+
+def box(name, loc, dims, mat):
+    bpy.ops.mesh.primitive_cube_add(location=loc)
+    o = bpy.context.active_object
+    o.name = name
+    o.dimensions = dims
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    o.data.materials.append(mat)
+    return o
+
+def set_face_uv(obj, normal, u_fn, v_fn):
+    """Set loop UVs of the face whose normal matches `normal`.
+    u_fn/v_fn map a LOCAL vertex (x,y,z) -> u / v."""
+    mesh = obj.data
+    if not mesh.uv_layers:
+        mesh.uv_layers.new()
+    uv = mesh.uv_layers.active.data
+    for poly in mesh.polygons:
+        n = poly.normal
+        if (abs(n.x - normal[0]) < 0.5 and abs(n.y - normal[1]) < 0.5
+                and abs(n.z - normal[2]) < 0.5):
+            for li in poly.loop_indices:
+                vtx = mesh.vertices[mesh.loops[li].vertex_index].co
+                uv[li].uv = (u_fn(vtx), v_fn(vtx))
+
+def face_uv_box(obj, normal, u_range, v_range, u_axis, v_axis,
+                u_min, u_max, v_min, v_max, flip_u=False, flip_v=False):
+    """Map a face to a texture rect. u_axis/v_axis are 'x'/'y'/'z' (LOCAL
+    vertex coords); the face spans [u_min,u_max] x [v_min,v_max]."""
+    def u_fn(vtx):
+        c = getattr(vtx, u_axis)
+        t = (c - u_min) / (u_max - u_min) if u_max > u_min else 0.0
+        if flip_u:
+            t = 1.0 - t
+        return u_range[0] + t * (u_range[1] - u_range[0])
+    def v_fn(vtx):
+        c = getattr(vtx, v_axis)
+        t = (c - v_min) / (v_max - v_min) if v_max > v_min else 0.0
+        if flip_v:
+            t = 1.0 - t
+        return v_range[0] + t * (v_range[1] - v_range[0])
+    set_face_uv(obj, normal, u_fn, v_fn)
+
+def plain_patch(obj, normal):
+    """Map a face to one solid charcoal pixel of the top texture."""
+    mesh = obj.data
+    if not mesh.uv_layers:
+        mesh.uv_layers.new()
+    uv = mesh.uv_layers.active.data
+    for poly in mesh.polygons:
+        n = poly.normal
+        if (abs(n.x - normal[0]) < 0.5 and abs(n.y - normal[1]) < 0.5
+                and abs(n.z - normal[2]) < 0.5):
+            for li in poly.loop_indices:
+                uv[li].uv = (0.61, 0.67)
+
+# ---------- materials ----------
+mat_top = make_textured_mat("TopTex", TOP)
+mat_bot = make_textured_mat("BottomTex", BOT)
+mat_shoe = make_textured_mat("ShoeTex", SHOE)
+mat_skin = make_plain_mat("Skin", (0.72, 0.55, 0.42), 0.7)
+
+# ---------- manikin (faces -Y, metres) ----------
+# local half-extents: torso x .21, y .12, z .275 | arm x .055, y .065, z .275
+#                    leg x .08, y .09, z .425   | foot x .085, y .15, z .05
+bpy.ops.mesh.primitive_uv_sphere_add(radius=0.11, location=(0, 0, 1.62))
+head = bpy.context.active_object
+head.name = "Head"
+head.data.materials.append(mat_skin)
+
+# torso
+torso = box("Torso", (0, 0, 1.20), (0.42, 0.24, 0.55), mat_top)
+face_uv_box(torso, (0, -1, 0), *uv_rect(312, 26, 712, 500),
+            'x', 'z', -0.21, 0.21, -0.275, 0.275)          # front
+face_uv_box(torso, (0, 1, 0), *uv_rect(312, 538, 712, 1012),
+            'x', 'z', -0.21, 0.21, -0.275, 0.275, flip_u=True)  # back
+for n in ((1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1)):
+    plain_patch(torso, n)
+
+# arms
+for side, sx in (("L", -1), ("R", 1)):
+    arm = box(f"Arm{side}", (sx * 0.27, 0, 1.20), (0.11, 0.13, 0.55), mat_top)
+    fx0, fx1 = (24, 312) if side == "L" else (712, 1000)
+    # right sleeve is mirrored: its cuff sits at u_range[1] (x=1000),
+    # so flip u to keep the cuff at the wrist on both arms.
+    flip = (side == "R")
+    # sleeve region, rotated 90 deg: texture x (cuff->shoulder) maps to
+    # arm z (wrist->shoulder); texture y maps to arm x.
+    face_uv_box(arm, (0, -1, 0), *uv_rect(fx0, 36, fx1, 168),
+                'z', 'x', -0.275, 0.275, -0.055, 0.055,
+                flip_u=flip)    # front
+    face_uv_box(arm, (0, 1, 0), *uv_rect(fx0, 548, fx1, 680),
+                'z', 'x', -0.275, 0.275, -0.055, 0.055,
+                flip_u=flip)    # back
+    for n in ((1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1)):
+        plain_patch(arm, n)
+
+# legs
+for side, sx in (("L", -1), ("R", 1)):
+    leg = box(f"Leg{side}", (sx * 0.10, 0, 0.475), (0.16, 0.18, 0.85), mat_bot)
+    fx0, fx1 = (24, 250) if side == "L" else (262, 488)
+    bx0, bx1 = (536, 762) if side == "L" else (774, 1000)
+    face_uv_box(leg, (0, -1, 0), *uv_rect(fx0, 24, fx1, 1000),
+                'x', 'z', -0.08, 0.08, -0.425, 0.425)      # front
+    face_uv_box(leg, (0, 1, 0), *uv_rect(bx0, 24, bx1, 1000),
+                'x', 'z', -0.08, 0.08, -0.425, 0.425, flip_u=True)  # back
+    for n in ((1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1)):
+        plain_patch(leg, n)
+
+# feet: shoe boxes, toe forward (-Y)
+for side, sx in (("L", -1), ("R", 1)):
+    foot = box(f"Foot{side}", (sx * 0.10, -0.06, 0.05), (0.17, 0.30, 0.10),
+               mat_shoe)
+    face_uv_box(foot, (0, -1, 0), *uv_rect(60, 140, 520, 560),
+                'x', 'z', -0.085, 0.085, -0.05, 0.05)
+    face_uv_box(foot, (0, 1, 0), *uv_rect(60, 140, 520, 560),
+                'x', 'z', -0.085, 0.085, -0.05, 0.05)
+    face_uv_box(foot, (0, 0, 1), *uv_rect(60, 140, 520, 560),
+                'x', 'y', -0.085, 0.085, -0.15, 0.15, flip_v=True)
+    for n in ((1, 0, 0), (-1, 0, 0), (0, 0, -1)):
+        plain_patch(foot, n)
+
+# ---------- render setup ----------
+s = bpy.context.scene
+s.render.engine = 'CYCLES'
+s.cycles.device = 'CPU'
+s.cycles.samples = 64
+s.cycles.use_denoising = True
+s.render.resolution_x = 900
+s.render.resolution_y = 900
+s.render.film_transparent = True
+
+w = bpy.data.worlds["World"]
+w.use_nodes = True
+bg = w.node_tree.nodes["Background"]
+bg.inputs["Color"].default_value = (0.85, 0.87, 0.90, 1.0)
+bg.inputs["Strength"].default_value = 0.6
+
+bpy.ops.object.light_add(type='SUN', location=(2, -3, 4))
+sun = bpy.context.active_object
+sun.data.energy = 2.5
+sun.rotation_euler = (math.radians(50), 0, math.radians(30))
+bpy.ops.object.light_add(type='AREA', location=(-2, 2, 2))
+fill = bpy.context.active_object
+fill.data.energy = 80.0
+fill.data.size = 3.0
+
+def render_to(path, cam_loc, target, lens=50):
+    bpy.ops.object.camera_add(location=cam_loc)
+    cam = bpy.context.active_object
+    cam.name = "Cam"
+    direction = (Vector(target) - Vector(cam_loc))
+    cam.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
+    cam.data.lens = lens
+    s.camera = cam
+    s.render.filepath = path
+    bpy.ops.render.render(write_still=True)
+    print("RENDERED:", path)
+    bpy.data.objects.remove(cam, do_unlink=True)
+
+# full set: pulled back so the fedora (top z~1.86) is in frame
+render_to(f"{SET}/previews/preview-set.png", (0.9, -2.1, 1.6), (0, 0, 1.0))
+render_to(f"{SET}/previews/preview-top.png", (0, -1.5, 1.4), (0, 0, 1.3), lens=55)
+render_to(f"{SET}/previews/preview-bottom.png", (0, -1.3, 0.5), (0, 0, 0.45), lens=55)
+render_to(f"{SET}/previews/preview-footwear.png", (0.35, -0.95, 0.3), (0, -0.05, 0.08), lens=55)
+
+bpy.ops.wm.save_as_mainfile(filepath=f"{SET}/set-preview.blend")
+print("DONE")
