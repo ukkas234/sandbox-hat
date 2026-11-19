@@ -260,7 +260,8 @@ def paint_bottom():
 # =====================================================================
 # FOOTWEAR — dress boots, uppers + soles
 # =====================================================================
-def paint_footwear():
+def paint_footwear(v2=False):
+    out_name = "sandbox-footwear-v2.png" if v2 else "sandbox-footwear.png"
     layer = Image.new("RGB", (W, H), BLACK)
     d = ImageDraw.Draw(layer)
 
@@ -315,20 +316,31 @@ def paint_footwear():
         gold_piping(d, [(cx - 105, cy - 10), (cx + 105, cy - 10)], width=2)
         monogram(d, cx, cy - 30, s=1.0)
         # gold buckle strap across the vamp (above the toe cap)
-        d.rectangle([cx - 150, cy + 70, cx + 150, cy + 112], fill=GOLD_DK)
-        d.rectangle([cx - 150, cy + 74, cx + 150, cy + 108], fill=GOLD)
-        d.rectangle([cx - 24, cy + 66, cx + 24, cy + 116],
-                    outline=GOLD_LT, width=4)
+        # v2: slimmer strap — the wide bar read as a sandal strap in preview
+        if v2:
+            d.rectangle([cx - 130, cy + 80, cx + 130, cy + 102], fill=GOLD_DK)
+            d.rectangle([cx - 130, cy + 83, cx + 130, cy + 99], fill=GOLD)
+            d.rectangle([cx - 16, cy + 76, cx + 16, cy + 106],
+                        outline=GOLD_LT, width=3)
+        else:
+            d.rectangle([cx - 150, cy + 70, cx + 150, cy + 112], fill=GOLD_DK)
+            d.rectangle([cx - 150, cy + 74, cx + 150, cy + 108], fill=GOLD)
+            d.rectangle([cx - 24, cy + 66, cx + 24, cy + 116],
+                        outline=GOLD_LT, width=4)
 
     upper_details(290, 400)
     upper_details(700, 790)
 
     def sole_details(x0, y0, x1, y1):
         # thin gold heel edge + tread grooves
-        d.line([(x0 + 20, y0 + 4), (x1 - 20, y0 + 4)], fill=GOLD, width=3)
-        for yy in range(y0 + 50, y1 - 20, 42):
-            d.line([(x0 + 14, yy), (x1 - 14, yy)], fill=GOLD_DK, width=4)
-            d.line([(x0 + 14, yy + 5), (x1 - 14, yy + 5)], fill=GOLD, width=2)
+        # v2: fewer, thinner, single dark-gold lines — the double bright
+        # grooves dominated the sole view in preview
+        d.line([(x0 + 20, y0 + 4), (x1 - 20, y0 + 4)], fill=GOLD, width=2)
+        step = 64 if v2 else 42
+        for yy in range(y0 + 50, y1 - 20, step):
+            d.line([(x0 + 14, yy), (x1 - 14, yy)], fill=GOLD_DK, width=2)
+            if not v2:
+                d.line([(x0 + 14, yy + 5), (x1 - 14, yy + 5)], fill=GOLD, width=2)
 
     sole_details(635, 102, 819, 451)
     sole_details(51, 614, 195, 983)
@@ -342,12 +354,13 @@ def paint_footwear():
     monogram(d, 290, 234, s=0.6)
     monogram(d, 700, 702, s=0.6)
 
-    img.save(f"{OUT}/sandbox-footwear.png")
-    print("saved sandbox-footwear.png")
+    img.save(f"{OUT}/{out_name}")
+    print(f"saved {out_name}")
 
 
 if __name__ == "__main__":
     paint_top()
     paint_bottom()
     paint_footwear()
+    paint_footwear(v2=True)
     print("ALL TEXTURES DONE")
